@@ -9,6 +9,8 @@ except ImportError:
 
 # from PyQt4.QtOpenGL import *
 
+from typing import List
+from libs.keypoint import KeyPoint
 from libs.shape import Shape
 from libs.utils import distance
 
@@ -29,7 +31,13 @@ class Canvas(QWidget):
     shapeMoved = pyqtSignal()
     drawingPolygon = pyqtSignal(bool)
 
-    CREATE, EDIT = list(range(2))
+    EDIT, CREATE, KEYPOINT = list(range(3))
+    KEY_POINT_NAMES = [
+        "nose","left_eye","right_eye","left_ear","right_ear",
+        "left_shoulder","right_shoulder","left_elbow","right_elbow",
+        "left_wrist","right_wrist","left_hip","right_hip",
+        "left_knee","right_knee","left_ankle","right_ankle"
+    ]
 
     epsilon = 11.0
 
@@ -39,6 +47,8 @@ class Canvas(QWidget):
         self.mode = self.EDIT
         self.shapes = []
         self.current = None
+        self.keypoint = None
+        self.keypoints: List[KeyPoint] = []
         self.selected_shape = None  # save the selected shape here
         self.selected_shape_copy = None
         self.drawing_line_color = QColor(0, 0, 255)
@@ -89,11 +99,25 @@ class Canvas(QWidget):
     def editing(self):
         return self.mode == self.EDIT
 
+    def keypointing(self):
+        return self.mode == self.KEYPOINT
+
     def set_editing(self, value=True):
         self.mode = self.EDIT if value else self.CREATE
         if not value:  # Create
             self.un_highlight()
             self.de_select_shape()
+        self.prev_point = QPointF()
+        self.repaint()
+
+    def set_mode(self, mode: int):
+        self.mode = mode
+        if mode == 1:
+            self.un_highlight()
+            self.de_select_shape()
+        if self.current:
+            self.finalise()
+        self.keypoint = None
         self.prev_point = QPointF()
         self.repaint()
 
@@ -230,10 +254,12 @@ class Canvas(QWidget):
 
     def mousePressEvent(self, ev):
         pos = self.transform_pos(ev.pos())
-
         if ev.button() == Qt.LeftButton:
             if self.drawing():
                 self.handle_drawing(pos)
+            elif self.keypointing():
+                self.handle_keypoint(pos)
+                print(self.drawing(), pos, self.mode)
             else:
                 selection = self.select_shape_point(pos)
                 self.prev_point = pos
@@ -291,6 +317,16 @@ class Canvas(QWidget):
             # Otherwise the user will not be able to select a shape.
             self.set_hiding(True)
             self.repaint()
+
+    def handle_keypoint(self, pos):
+        if self.keypoint is None:
+            self.keypoint = KeyPoint()
+            self.keypoint.set_keypoint(pos)
+        else:
+            self.keypoint.set_keypoint(pos)
+            if self.keypoint.is_end():
+                self.keypoints.append(self.keypoint)
+                self.keypoint = None
 
     def handle_drawing(self, pos):
         if self.current and self.current.reach_max_points() is False:
@@ -478,6 +514,11 @@ class Canvas(QWidget):
         p.translate(self.offset_to_center())
 
         p.drawPixmap(0, 0, self.pixmap)
+        if self.keypoint:
+            self.keypoint.paint_keypoints(p)
+        for keypoint in self.keypoints:
+            keypoint.paint_keypoints(p)
+
         Shape.scale = self.scale
         Shape.label_font_size = self.label_font_size
         for shape in self.shapes:

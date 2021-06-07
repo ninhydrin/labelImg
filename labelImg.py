@@ -76,6 +76,10 @@ class WindowMixin(object):
 class MainWindow(QMainWindow, WindowMixin):
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
 
+    EDIT_MODE = 0
+    BBOX_MODE = 1
+    KEYPOINT_MODE = 2
+
     def __init__(self, default_filename=None, default_prefdef_class_file=None, default_save_dir=None):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
@@ -209,33 +213,16 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Actions
         action = partial(new_action, self)
-        quit = action(get_str('quit'), self.close,
-                      'Ctrl+Q', 'quit', get_str('quitApp'))
-
-        open = action(get_str('openFile'), self.open_file,
-                      'Ctrl+O', 'open', get_str('openFileDetail'))
-
-        open_dir = action(get_str('openDir'), self.open_dir_dialog,
-                          'Ctrl+u', 'open', get_str('openDir'))
-
-        change_save_dir = action(get_str('changeSaveDir'), self.change_save_dir_dialog,
-                                 'Ctrl+r', 'open', get_str('changeSavedAnnotationDir'))
-
-        open_annotation = action(get_str('openAnnotation'), self.open_annotation_dialog,
-                                 'Ctrl+Shift+O', 'open', get_str('openAnnotationDetail'))
+        quit = action(get_str('quit'), self.close, 'Ctrl+Q', 'quit', get_str('quitApp'))
+        open = action(get_str('openFile'), self.open_file, 'Ctrl+O', 'open', get_str('openFileDetail'))
+        open_dir = action(get_str('openDir'), self.open_dir_dialog, 'Ctrl+u', 'open', get_str('openDir'))
+        change_save_dir = action(get_str('changeSaveDir'), self.change_save_dir_dialog, 'Ctrl+r', 'open', get_str('changeSavedAnnotationDir'))
+        open_annotation = action(get_str('openAnnotation'), self.open_annotation_dialog, 'Ctrl+Shift+O', 'open', get_str('openAnnotationDetail'))
         copy_prev_bounding = action(get_str('copyPrevBounding'), self.copy_previous_bounding_boxes, 'Ctrl+v', 'copy', get_str('copyPrevBounding'))
-
-        open_next_image = action(get_str('nextImg'), self.open_next_image,
-                                 'd', 'next', get_str('nextImgDetail'))
-
-        open_prev_image = action(get_str('prevImg'), self.open_prev_image,
-                                 'a', 'prev', get_str('prevImgDetail'))
-
-        verify = action(get_str('verifyImg'), self.verify_image,
-                        'space', 'verify', get_str('verifyImgDetail'))
-
-        save = action(get_str('save'), self.save_file,
-                      'Ctrl+S', 'save', get_str('saveDetail'), enabled=False)
+        open_next_image = action(get_str('nextImg'), self.open_next_image, 'd', 'next', get_str('nextImgDetail'))
+        open_prev_image = action(get_str('prevImg'), self.open_prev_image, 'a', 'prev', get_str('prevImgDetail'))
+        verify = action(get_str('verifyImg'), self.verify_image, 'space', 'verify', get_str('verifyImgDetail'))
+        save = action(get_str('save'), self.save_file, 'Ctrl+S', 'save', get_str('saveDetail'), enabled=False)
 
         def get_format_meta(format):
             """
@@ -253,42 +240,21 @@ class MainWindow(QMainWindow, WindowMixin):
                              get_format_meta(self.label_file_format)[1],
                              get_str('changeSaveFormat'), enabled=True)
 
-        save_as = action(get_str('saveAs'), self.save_file_as,
-                         'Ctrl+Shift+S', 'save-as', get_str('saveAsDetail'), enabled=False)
-
+        save_as = action(get_str('saveAs'), self.save_file_as, 'Ctrl+Shift+S', 'save-as', get_str('saveAsDetail'), enabled=False)
         close = action(get_str('closeCur'), self.close_file, 'Ctrl+W', 'close', get_str('closeCurDetail'))
-
         delete_image = action(get_str('deleteImg'), self.delete_image, 'Ctrl+Shift+D', 'close', get_str('deleteImgDetail'))
-
         reset_all = action(get_str('resetAll'), self.reset_all, None, 'resetall', get_str('resetAllDetail'))
-
-        color1 = action(get_str('boxLineColor'), self.choose_color1,
-                        'Ctrl+L', 'color_line', get_str('boxLineColorDetail'))
-
-        create_mode = action(get_str('crtBox'), self.set_create_mode,
-                             'w', 'new', get_str('crtBoxDetail'), enabled=False)
-        edit_mode = action('&Edit\nRectBox', self.set_edit_mode,
-                           'Ctrl+J', 'edit', u'Move and edit Boxs', enabled=False)
-
-        create = action(get_str('crtBox'), self.create_shape,
-                        'w', 'new', get_str('crtBoxDetail'), enabled=False)
-        delete = action(get_str('delBox'), self.delete_selected_shape,
-                        'Delete', 'delete', get_str('delBoxDetail'), enabled=False)
-        copy = action(get_str('dupBox'), self.copy_selected_shape,
-                      'Ctrl+D', 'copy', get_str('dupBoxDetail'),
-                      enabled=False)
-
-        advanced_mode = action(get_str('advancedMode'), self.toggle_advanced_mode,
-                               'Ctrl+Shift+A', 'expert', get_str('advancedModeDetail'),
-                               checkable=True)
-
-        hide_all = action('&Hide\nRectBox', partial(self.toggle_polygons, False),
-                          'Ctrl+H', 'hide', get_str('hideAllBoxDetail'),
-                          enabled=False)
-        show_all = action('&Show\nRectBox', partial(self.toggle_polygons, True),
-                          'Ctrl+A', 'hide', get_str('showAllBoxDetail'),
-                          enabled=False)
-
+        color1 = action(get_str('boxLineColor'), self.choose_color1, 'Ctrl+L', 'color_line', get_str('boxLineColorDetail'))
+        create_mode = action(get_str('crtBox'), self.set_create_mode, 'w', 'new', get_str('crtBoxDetail'), enabled=False)
+        keypoint_mode = action("create keypoint", self.set_keypoint_mode, 'f', 'neww', 'crtBoxDetail', enabled=False)
+        edit_mode = action('&Edit\nRectBox', self.set_edit_mode, 'Ctrl+J', 'edit', u'Move and edit Boxs', enabled=False)
+        create = action(get_str('crtBox'), self.create_shape,'w', 'new', get_str('crtBoxDetail'), enabled=False)
+        keypoint = action("create keypoint", self.create_shape,'w', 'new', get_str('crtBoxDetail'), enabled=False)
+        delete = action(get_str('delBox'), self.delete_selected_shape,'Delete', 'delete', get_str('delBoxDetail'), enabled=False)
+        copy = action(get_str('dupBox'), self.copy_selected_shape, 'Ctrl+D', 'copy', get_str('dupBoxDetail'), enabled=False)
+        advanced_mode = action(get_str('advancedMode'), self.toggle_advanced_mode, 'Ctrl+Shift+A', 'expert', get_str('advancedModeDetail'), checkable=True)
+        hide_all = action('&Hide\nRectBox', partial(self.toggle_polygons, False), 'Ctrl+H', 'hide', get_str('hideAllBoxDetail'), enabled=False)
+        show_all = action('&Show\nRectBox', partial(self.toggle_polygons, True), 'Ctrl+A', 'hide', get_str('showAllBoxDetail'), enabled=False)
         help_default = action(get_str('tutorialDefault'), self.show_default_tutorial_dialog, None, 'help', get_str('tutorialDetail'))
         show_info = action(get_str('info'), self.show_info_dialog, None, 'help', get_str('info'))
         show_shortcut = action(get_str('shortcut'), self.show_shortcuts_dialog, None, 'help', get_str('shortcut'))
@@ -301,21 +267,14 @@ class MainWindow(QMainWindow, WindowMixin):
                                              format_shortcut("Ctrl+Wheel")))
         self.zoom_widget.setEnabled(False)
 
-        zoom_in = action(get_str('zoomin'), partial(self.add_zoom, 10),
-                         'Ctrl++', 'zoom-in', get_str('zoominDetail'), enabled=False)
-        zoom_out = action(get_str('zoomout'), partial(self.add_zoom, -10),
-                          'Ctrl+-', 'zoom-out', get_str('zoomoutDetail'), enabled=False)
-        zoom_org = action(get_str('originalsize'), partial(self.set_zoom, 100),
-                          'Ctrl+=', 'zoom', get_str('originalsizeDetail'), enabled=False)
-        fit_window = action(get_str('fitWin'), self.set_fit_window,
-                            'Ctrl+F', 'fit-window', get_str('fitWinDetail'),
-                            checkable=True, enabled=False)
-        fit_width = action(get_str('fitWidth'), self.set_fit_width,
-                           'Ctrl+Shift+F', 'fit-width', get_str('fitWidthDetail'),
-                           checkable=True, enabled=False)
+        zoom_in = action(get_str('zoomin'), partial(self.add_zoom, 10), 'Ctrl++', 'zoom-in', get_str('zoominDetail'), enabled=False)
+        zoom_out = action(get_str('zoomout'), partial(self.add_zoom, -10), 'Ctrl+-', 'zoom-out', get_str('zoomoutDetail'), enabled=False)
+        zoom_org = action(get_str('originalsize'), partial(self.set_zoom, 100), 'Ctrl+=', 'zoom', get_str('originalsizeDetail'), enabled=False)
+        fit_window = action(get_str('fitWin'), self.set_fit_window, 'Ctrl+F', 'fit-window', get_str('fitWinDetail'), checkable=True, enabled=False)
+        fit_width = action(get_str('fitWidth'), self.set_fit_width, 'Ctrl+Shift+F', 'fit-width', get_str('fitWidthDetail'), checkable=True, enabled=False)
         # Group zoom controls into a list for easier toggling.
-        zoom_actions = (self.zoom_widget, zoom_in, zoom_out,
-                        zoom_org, fit_window, fit_width)
+        zoom_actions = (self.zoom_widget, zoom_in, zoom_out, zoom_org, fit_window, fit_width)
+
         self.zoom_mode = self.MANUAL_ZOOM
         self.scalers = {
             self.FIT_WINDOW: self.scale_fit_window,
@@ -358,20 +317,17 @@ class MainWindow(QMainWindow, WindowMixin):
         self.actions = Struct(save=save, save_format=save_format, saveAs=save_as, open=open, close=close, resetAll=reset_all, deleteImg=delete_image,
                               lineColor=color1, create=create, delete=delete, edit=edit, copy=copy,
                               createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
+                              keypointMode=keypoint_mode,
                               shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
                               zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
                               fitWindow=fit_window, fitWidth=fit_width,
                               zoomActions=zoom_actions,
-                              fileMenuActions=(
-                                  open, open_dir, save, save_as, close, reset_all, quit),
+                              fileMenuActions=(open, open_dir, save, save_as, close, reset_all, quit),
                               beginner=(), advanced=(),
-                              editMenu=(edit, copy, delete,
-                                        None, color1, self.draw_squares_option),
+                              editMenu=(edit, copy, delete, None, color1, self.draw_squares_option),
                               beginnerContext=(create, edit, copy, delete),
-                              advancedContext=(create_mode, edit_mode, edit, copy,
-                                               delete, shape_line_color, shape_fill_color),
-                              onLoadActive=(
-                                  close, create, create_mode, edit_mode),
+                              advancedContext=(create_mode, edit_mode, edit, copy, delete, shape_line_color, shape_fill_color),
+                              onLoadActive=(close, create, create_mode, edit_mode),
                               onShapesPresent=(save_as, hide_all, show_all))
 
         self.menus = Struct(
@@ -419,14 +375,15 @@ class MainWindow(QMainWindow, WindowMixin):
             action('&Copy here', self.copy_shape),
             action('&Move here', self.move_shape)))
 
+        # NOTE: Toolsは左のサイドバーメニュー
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            open, open_dir, change_save_dir, open_next_image, open_prev_image, verify, save, save_format, None, create, copy, delete, None,
+            open, open_dir, change_save_dir, open_next_image, open_prev_image, verify, save, save_format, None, create, keypoint, copy, delete, None,
             zoom_in, zoom, zoom_out, fit_window, fit_width)
 
         self.actions.advanced = (
             open, open_dir, change_save_dir, open_next_image, open_prev_image, save, save_format, None,
-            create_mode, edit_mode, None,
+            create_mode, keypoint_mode, edit_mode, None,
             hide_all, show_all)
 
         self.statusBar().showMessage('%s started.' % __appname__)
@@ -559,6 +516,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.edit_button.setVisible(not value)
         if value:
             self.actions.createMode.setEnabled(True)
+            self.actions.keypointMode.setEnabled(True)
             self.actions.editMode.setEnabled(False)
             self.dock.setFeatures(self.dock.features() | self.dock_features)
         else:
@@ -569,13 +527,11 @@ class MainWindow(QMainWindow, WindowMixin):
             tool, menu = self.actions.beginner, self.actions.beginnerContext
         else:
             tool, menu = self.actions.advanced, self.actions.advancedContext
-        self.tools.clear()
-        add_actions(self.tools, tool)
-        self.canvas.menus[0].clear()
-        add_actions(self.canvas.menus[0], menu)
+        self.tools.clear(), add_actions(self.tools, tool)
+        self.canvas.menus[0].clear(), add_actions(self.canvas.menus[0], menu)
+
         self.menus.edit.clear()
-        actions = (self.actions.create,) if self.beginner()\
-            else (self.actions.createMode, self.actions.editMode)
+        actions = (self.actions.create,) if self.beginner() else (self.actions.createMode, self.actions.editMode)
         add_actions(self.menus.edit, actions + self.actions.editMenu)
 
     def set_beginner(self):
@@ -632,10 +588,10 @@ class MainWindow(QMainWindow, WindowMixin):
             self.recent_files.pop()
         self.recent_files.insert(0, file_path)
 
-    def beginner(self):
+    def beginner(self) -> bool:
         return self._beginner
 
-    def advanced(self):
+    def advanced(self) -> bool:
         return not self.beginner()
 
     def show_tutorial_dialog(self, browser='default', link=None):
@@ -684,18 +640,27 @@ class MainWindow(QMainWindow, WindowMixin):
             self.canvas.restore_cursor()
             self.actions.create.setEnabled(True)
 
-    def toggle_draw_mode(self, edit=True):
-        self.canvas.set_editing(edit)
-        self.actions.createMode.setEnabled(edit)
-        self.actions.editMode.setEnabled(not edit)
+    def toggle_draw_mode(self, mode: int):
+        actions = [
+            self.actions.editMode,
+            self.actions.createMode,
+            self.actions.keypointMode,
+        ]
+        self.canvas.set_mode(mode)
+        for i, m in enumerate(actions):
+            m.setEnabled(i != mode)
 
     def set_create_mode(self):
         assert self.advanced()
-        self.toggle_draw_mode(False)
+        self.toggle_draw_mode(self.BBOX_MODE)
+
+    def set_keypoint_mode(self):
+        assert self.advanced()
+        self.toggle_draw_mode(self.KEYPOINT_MODE)
 
     def set_edit_mode(self):
         assert self.advanced()
-        self.toggle_draw_mode(True)
+        self.toggle_draw_mode(self.EDIT_MODE)
         self.label_selection_changed()
 
     def update_file_menu(self):
