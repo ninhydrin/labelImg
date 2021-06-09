@@ -4,6 +4,7 @@ import argparse
 import codecs
 import distutils.spawn
 import os.path
+from pathlib import Path
 import platform
 import re
 import sys
@@ -97,7 +98,8 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Save as Pascal voc xml
         self.default_save_dir = default_save_dir
-        self.label_file_format = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.PASCAL_VOC)
+        # self.label_file_format = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.PASCAL_VOC)
+        self.label_file_format = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.CREATE_ML)
 
         # For loading all image under a directory
         self.m_img_list = []
@@ -203,6 +205,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.selectionChanged.connect(self.shape_selection_changed)
         self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
 
+        self.canvas.newKeypoint.connect(self.set_dirty)
         self.setCentralWidget(scroll)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
@@ -670,12 +673,13 @@ class MainWindow(QMainWindow, WindowMixin):
             return os.path.exists(filename)
         menu = self.menus.recentFiles
         menu.clear()
-        files = [f for f in self.recent_files if f !=
-                 curr_file_path and exists(f)]
+        files = [f for f in self.recent_files if f != curr_file_path and exists(f)]
+
         for i, f in enumerate(files):
+            f = str(f)
             icon = new_icon('labels')
-            action = QAction(
-                icon, '&%d %s' % (i + 1, QFileInfo(f).fileName()), self)
+            action = QAction(icon, '&%d %s' % (i + 1, QFileInfo(f).fileName()), self)
+
             action.triggered.connect(partial(self.load_recent, f))
             menu.addAction(action)
 
@@ -809,8 +813,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.combo_box.update_items(unique_text_list)
 
-    def save_labels(self, annotation_file_path):
-        annotation_file_path = ustr(annotation_file_path)
+    def save_labels(self, annotation_file_path: Path) -> bool:
         if self.label_file is None:
             self.label_file = LabelFile()
             self.label_file.verified = self.canvas.verified
@@ -824,27 +827,28 @@ class MainWindow(QMainWindow, WindowMixin):
                         difficult=s.difficult)
 
         shapes = [format_shape(shape) for shape in self.canvas.shapes]
+        keypoints = self.canvas.keypoints
         # Can add different annotation formats here
         try:
             if self.label_file_format == LabelFileFormat.PASCAL_VOC:
-                if annotation_file_path[-4:].lower() != ".xml":
-                    annotation_file_path += XML_EXT
+                if annotation_file_path.suffix != ".xml":
+                    annotation_file_path = annotation_file_path.with_suffix(XML_EXT)
                 self.label_file.save_pascal_voc_format(annotation_file_path, shapes, self.file_path, self.image_data,
                                                        self.line_color.getRgb(), self.fill_color.getRgb())
             elif self.label_file_format == LabelFileFormat.YOLO:
-                if annotation_file_path[-4:].lower() != ".txt":
-                    annotation_file_path += TXT_EXT
+                if annotation_file_path.suffix != ".txt":
+                    annotation_file_path = annotation_file_path.with_suffix(TXT_EXT)
                 self.label_file.save_yolo_format(annotation_file_path, shapes, self.file_path, self.image_data, self.label_hist,
                                                  self.line_color.getRgb(), self.fill_color.getRgb())
             elif self.label_file_format == LabelFileFormat.CREATE_ML:
-                if annotation_file_path[-5:].lower() != ".json":
-                    annotation_file_path += JSON_EXT
-                self.label_file.save_create_ml_format(annotation_file_path, shapes, self.file_path, self.image_data,
+                if annotation_file_path.suffix != ".json":
+                    annotation_file_path = annotation_file_path.with_suffix(JSON_EXT)
+                self.label_file.save_create_ml_format(annotation_file_path, shapes, keypoints, self.file_path, self.image_data,
                                                       self.label_hist, self.line_color.getRgb(), self.fill_color.getRgb())
             else:
                 self.label_file.save(annotation_file_path, shapes, self.file_path, self.image_data,
                                      self.line_color.getRgb(), self.fill_color.getRgb())
-            print('Image:{0} -> Annotation:{1}'.format(self.file_path, annotation_file_path))
+            print(f'Image:{self.file_path} -> Annotation:{annotation_file_path}')
             return True
         except LabelFileError as e:
             self.error_message(u'Error saving label data', u'<b>%s</b>' % e)
@@ -1018,7 +1022,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Fix bug: An  index error after select a directory when open a new file.
         unicode_file_path = ustr(file_path)
-        unicode_file_path = os.path.abspath(unicode_file_path)
+        unicode_file_path = Path(unicode_file_path).absolute()
         # Tzutalin 20160906 : Add file list and dock to move faster
         # Highlight the file item
         if unicode_file_path and self.file_list_widget.count() > 0:
@@ -1030,7 +1034,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 self.file_list_widget.clear()
                 self.m_img_list.clear()
 
-        if unicode_file_path and os.path.exists(unicode_file_path):
+        if unicode_file_path and unicode_file_path.exists():
             if LabelFile.is_label_file(unicode_file_path):
                 try:
                     self.label_file = LabelFile(unicode_file_path)
@@ -1048,7 +1052,7 @@ class MainWindow(QMainWindow, WindowMixin):
             else:
                 # Load image:
                 # read data first and store for saving into label file.
-                self.image_data = read(unicode_file_path, None)
+                self.image_data = read(str(unicode_file_path), None)
                 self.label_file = None
                 self.canvas.verified = False
 
@@ -1056,12 +1060,13 @@ class MainWindow(QMainWindow, WindowMixin):
                 image = self.image_data
             else:
                 image = QImage.fromData(self.image_data)
+
             if image.isNull():
                 self.error_message(u'Error opening file',
                                    u"<p>Make sure <i>%s</i> is a valid image file." % unicode_file_path)
-                self.status("Error reading %s" % unicode_file_path)
+                self.status(f"Error reading {unicode_file_path}")
                 return False
-            self.status("Loaded %s" % os.path.basename(unicode_file_path))
+            self.status(f"Loaded {unicode_file_path.name}")
             self.image = image
             self.file_path = unicode_file_path
             self.canvas.load_pixmap(QPixmap.fromImage(image))
@@ -1357,23 +1362,17 @@ class MainWindow(QMainWindow, WindowMixin):
     def save_file(self, _value=False):
         if self.default_save_dir is not None and len(ustr(self.default_save_dir)):
             if self.file_path:
-                image_file_name = os.path.basename(self.file_path)
-                saved_file_name = os.path.splitext(image_file_name)[0]
-                saved_path = os.path.join(ustr(self.default_save_dir), saved_file_name)
+                saved_path = Path(self.default_save_dir) / self.file_path.stem
                 self._save_file(saved_path)
         else:
-            image_file_dir = os.path.dirname(self.file_path)
-            image_file_name = os.path.basename(self.file_path)
-            saved_file_name = os.path.splitext(image_file_name)[0]
-            saved_path = os.path.join(image_file_dir, saved_file_name)
-            self._save_file(saved_path if self.label_file
-                            else self.save_file_dialog(remove_ext=False))
+            saved_path = self.file_path.parent / self.file_path.stem
+            self._save_file(saved_path if self.label_file else self.save_file_dialog(remove_ext=False))
 
     def save_file_as(self, _value=False):
         assert not self.image.isNull(), "cannot save empty image"
         self._save_file(self.save_file_dialog())
 
-    def save_file_dialog(self, remove_ext=True):
+    def save_file_dialog(self, remove_ext=True) -> str:
         caption = '%s - Choose File' % __appname__
         filters = 'File (*%s)' % LabelFile.suffix
         open_dialog_path = self.current_path()
@@ -1384,17 +1383,17 @@ class MainWindow(QMainWindow, WindowMixin):
         dlg.selectFile(filename_without_extension)
         dlg.setOption(QFileDialog.DontUseNativeDialog, False)
         if dlg.exec_():
-            full_file_path = ustr(dlg.selectedFiles()[0])
+            full_file_path = Path(ustr(dlg.selectedFiles()[0]))
             if remove_ext:
-                return os.path.splitext(full_file_path)[0]  # Return file path without the extension.
+                return full_file_path.parent / full_file_path.stem
             else:
                 return full_file_path
         return ''
 
-    def _save_file(self, annotation_file_path):
+    def _save_file(self, annotation_file_path: Path) -> None:
         if annotation_file_path and self.save_labels(annotation_file_path):
             self.set_clean()
-            self.statusBar().showMessage('Saved to  %s' % annotation_file_path)
+            self.statusBar().showMessage(f'Saved to {annotation_file_path}')
             self.statusBar().show()
 
     def close_file(self, _value=False):

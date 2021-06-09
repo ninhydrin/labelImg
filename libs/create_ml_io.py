@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
 import json
+from libs.keypoint import KeyPoint
 from pathlib import Path
+from typing import List
 
 from libs.constants import DEFAULT_ENCODING
 import os
@@ -11,7 +13,7 @@ ENCODE_METHOD = DEFAULT_ENCODING
 
 
 class CreateMLWriter:
-    def __init__(self, folder_name, filename, img_size, shapes, output_file, database_src='Unknown', local_img_path=None):
+    def __init__(self, folder_name, filename, img_size, shapes, keypoints: List[KeyPoint], output_file: Path, database_src='Unknown', local_img_path=None):
         self.folder_name = folder_name
         self.filename = filename
         self.database_src = database_src
@@ -20,19 +22,20 @@ class CreateMLWriter:
         self.local_img_path = local_img_path
         self.verified = False
         self.shapes = shapes
+        self.keypoints = keypoints
         self.output_file = output_file
 
     def write(self):
-        if os.path.isfile(self.output_file):
-            with open(self.output_file, "r") as file:
-                input_data = file.read()
-                output_dict = json.loads(input_data)
+        if self.output_file.is_file():
+            with self.output_file.open() as f:
+                output_dict = json.load(f)
         else:
             output_dict = []
 
         output_image_dict = {
             "image": self.filename,
-            "annotations": []
+            "annotations": [],
+            "keypoints": [],
         }
 
         for shape in self.shapes:
@@ -56,6 +59,13 @@ class CreateMLWriter:
             }
             output_image_dict["annotations"].append(shape_dict)
 
+        zero = (0, 0, 0)
+        for keypiont_obj in self.keypoints:
+            k = keypiont_obj.keypoints
+            keypoints = [zero if k[i] is None else (k[i].x(), k[i].y(), 2) for i in KeyPoint.KEY_POINT_NAMES]
+            output_image_dict["keypoints"].append(keypoints)
+            # keypoints = [j for i in keypoints for j in i]
+
         # check if image already in output
         exists = False
         for i in range(0, len(output_dict)):
@@ -66,8 +76,9 @@ class CreateMLWriter:
 
         if not exists:
             output_dict.append(output_image_dict)
-
-        Path(self.output_file).write_text(json.dumps(output_dict), ENCODE_METHOD)
+        with self.output_file.open("w") as f:
+            json.dump(output_dict, f, indent=4, sort_keys=True, separators=(',', ': '))
+        # Path(self.output_file).write_text(json.dumps(output_dict), ENCODE_METHOD)
 
     def calculate_coordinates(self, x1, x2, y1, y2):
         if x1 < x2:

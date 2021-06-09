@@ -1,5 +1,6 @@
 # Copyright (c) 2016 Tzutalin
 # Create by TzuTaLin <tzu.ta.lin@gmail.com>
+from pathlib import Path
 
 try:
     from PyQt5.QtGui import QImage
@@ -7,6 +8,8 @@ except ImportError:
     from PyQt4.QtGui import QImage
 
 from base64 import b64encode, b64decode
+from libs.keypoint import KeyPoint
+from typing import List
 from libs.pascal_voc_io import PascalVocWriter
 from libs.yolo_io import YOLOWriter
 from libs.pascal_voc_io import XML_EXT
@@ -38,16 +41,14 @@ class LabelFile(object):
         self.image_data = None
         self.verified = False
 
-    def save_create_ml_format(self, filename, shapes, image_path, image_data, class_list, line_color=None, fill_color=None, database_src=None):
-        img_folder_name = os.path.basename(os.path.dirname(image_path))
-        img_file_name = os.path.basename(image_path)
+    def save_create_ml_format(self, filename: Path, shapes, keypoints: List[KeyPoint], image_path: Path, image_data, class_list, line_color=None, fill_color=None, database_src=None):
+        img_folder_name = image_path.parent.name
+        img_file_name = image_path.name
 
         image = QImage()
-        image.load(image_path)
-        image_shape = [image.height(), image.width(),
-                       1 if image.isGrayscale() else 3]
-        writer = CreateMLWriter(img_folder_name, img_file_name,
-                                image_shape, shapes, filename, local_img_path=image_path)
+        image.load(str(image_path))
+        image_shape = [image.height(), image.width(), 1 if image.isGrayscale() else 3]
+        writer = CreateMLWriter(img_folder_name, img_file_name, image_shape, shapes, keypoints, filename, local_img_path=image_path)
         writer.verified = self.verified
         writer.write()
 
