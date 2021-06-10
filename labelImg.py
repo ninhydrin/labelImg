@@ -166,11 +166,21 @@ class MainWindow(QMainWindow, WindowMixin):
         self.label_list.itemChanged.connect(self.label_item_changed)
         list_layout.addWidget(self.label_list)
 
-
-
         self.dock = QDockWidget(get_str('boxLabelText'), self)
         self.dock.setObjectName(get_str('labels'))
         self.dock.setWidget(label_list_container)
+
+        keypoint_list_layout = QVBoxLayout()
+        keypoint_list_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.keypoint_list = QListWidget()
+        keypoint_list_container = QWidget()
+        keypoint_list_container.setLayout(keypoint_list_layout)
+        keypoint_list_layout.addWidget(self.keypoint_list)
+
+        self.keypoint_dock = QDockWidget("keypoint list", self)
+        self.keypoint_dock.setObjectName("huge")
+        self.keypoint_dock.setWidget(keypoint_list_container)
 
         self.file_list_widget = QListWidget()
         self.file_list_widget.itemDoubleClicked.connect(self.file_item_double_clicked)
@@ -208,9 +218,10 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.newKeypoint.connect(self.set_dirty)
         self.setCentralWidget(scroll)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.keypoint_dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
-        self.file_dock.setFeatures(QDockWidget.DockWidgetFloatable)
 
+        self.file_dock.setFeatures(QDockWidget.DockWidgetFloatable)
         self.dock_features = QDockWidget.DockWidgetClosable | QDockWidget.DockWidgetFloatable
         self.dock.setFeatures(self.dock.features() ^ self.dock_features)
 
@@ -772,12 +783,11 @@ class MainWindow(QMainWindow, WindowMixin):
         del self.items_to_shapes[item]
         self.update_combo_box()
 
-    def load_labels(self, shapes):
+    def load_labels(self, shapes: list):
         s = []
         for label, points, line_color, fill_color, difficult in shapes:
             shape = Shape(label=label)
             for x, y in points:
-
                 # Ensure the labels are within the bounds of the image. If not, fix them.
                 x, y, snapped = self.canvas.snap_point_to_canvas(x, y)
                 if snapped:
@@ -788,16 +798,8 @@ class MainWindow(QMainWindow, WindowMixin):
             shape.close()
             s.append(shape)
 
-            if line_color:
-                shape.line_color = QColor(*line_color)
-            else:
-                shape.line_color = generate_color_by_text(label)
-
-            if fill_color:
-                shape.fill_color = QColor(*fill_color)
-            else:
-                shape.fill_color = generate_color_by_text(label)
-
+            shape.line_color = QColor(*line_color) if line_color else generate_color_by_text(label)
+            shape.fill_color = QColor(*fill_color) if fill_color else generate_color_by_text(label)
             self.add_label(shape)
         self.update_combo_box()
         self.canvas.load_shapes(s)
@@ -1099,28 +1101,30 @@ class MainWindow(QMainWindow, WindowMixin):
         return '[{} / {}]'.format(self.cur_img_idx + 1, self.img_count)
 
     def show_bounding_box_from_annotation_file(self, file_path):
+        file_path = Path(file_path)
         if self.default_save_dir is not None:
-            basename = os.path.basename(os.path.splitext(file_path)[0])
-            xml_path = os.path.join(self.default_save_dir, basename + XML_EXT)
-            txt_path = os.path.join(self.default_save_dir, basename + TXT_EXT)
-            json_path = os.path.join(self.default_save_dir, basename + JSON_EXT)
+            default_save_dir = Path(self.default_save_dir)
+            basename = file_path.stem
+            xml_path = (default_save_dir / basename).with_suffix(XML_EXT)
+            txt_path = (default_save_dir / basename).with_suffix(TXT_EXT)
+            json_path = (default_save_dir / basename).with_suffix(JSON_EXT)
 
             """Annotation file priority:
             PascalXML > YOLO
             """
-            if os.path.isfile(xml_path):
+            if xml_path.is_file():
                 self.load_pascal_xml_by_filename(xml_path)
-            elif os.path.isfile(txt_path):
+            elif txt_path.is_file():
                 self.load_yolo_txt_by_filename(txt_path)
-            elif os.path.isfile(json_path):
+            elif json_path.is_file():
                 self.load_create_ml_json_by_filename(json_path, file_path)
 
         else:
-            xml_path = os.path.splitext(file_path)[0] + XML_EXT
-            txt_path = os.path.splitext(file_path)[0] + TXT_EXT
-            if os.path.isfile(xml_path):
+            xml_path = file_path.with_suffix(XML_EXT)
+            txt_path = file_path.with_suffix(TXT_EXT)
+            if xml_path.is_file():
                 self.load_pascal_xml_by_filename(xml_path)
-            elif os.path.isfile(txt_path):
+            elif txt_path.is_file():
                 self.load_yolo_txt_by_filename(txt_path)
 
     def resizeEvent(self, event):
@@ -1210,7 +1214,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def change_save_dir_dialog(self, _value=False):
         if self.default_save_dir is not None:
-            path = ustr(self.default_save_dir)
+            path = self.default_save_dir
         else:
             path = '.'
 
@@ -1219,10 +1223,9 @@ class MainWindow(QMainWindow, WindowMixin):
                                                          | QFileDialog.DontResolveSymlinks))
 
         if dir_path is not None and len(dir_path) > 1:
-            self.default_save_dir = dir_path
+            self.default_save_dir = Path(dir_path)
 
-        self.statusBar().showMessage('%s . Annotation will be saved to %s' %
-                                     ('Change saved folder', self.default_save_dir))
+        self.statusBar().showMessage(f'Change saved folder. Annotation will be saved to {self.default_save_dir}')
         self.statusBar().show()
 
     def open_annotation_dialog(self, _value=False):
@@ -1292,45 +1295,36 @@ class MainWindow(QMainWindow, WindowMixin):
             self.paint_canvas()
             self.save_file()
 
-    def open_prev_image(self, _value=False):
+    def open_prev_image(self, _value=False) -> None:
         # Proceeding prev image without dialog if having any label
         if self.auto_saving.isChecked():
             if self.default_save_dir is not None:
-                if self.dirty is True:
+                if self.dirty:
                     self.save_file()
             else:
                 self.change_save_dir_dialog()
                 return
 
-        if not self.may_continue():
+        if not self.may_continue() or self.img_count <= 0 or self.file_path is None:
             return
 
-        if self.img_count <= 0:
-            return
-
-        if self.file_path is None:
-            return
-
-        if self.cur_img_idx - 1 >= 0:
+        if self.cur_img_idx >= 1:
             self.cur_img_idx -= 1
             filename = self.m_img_list[self.cur_img_idx]
             if filename:
                 self.load_file(filename)
 
-    def open_next_image(self, _value=False):
+    def open_next_image(self, _value=False) -> None:
         # Proceeding prev image without dialog if having any label
         if self.auto_saving.isChecked():
             if self.default_save_dir is not None:
-                if self.dirty is True:
+                if self.dirty:
                     self.save_file()
             else:
                 self.change_save_dir_dialog()
                 return
 
-        if not self.may_continue():
-            return
-
-        if self.img_count <= 0:
+        if not self.may_continue() or self.img_count <= 0:
             return
 
         filename = None
@@ -1498,36 +1492,28 @@ class MainWindow(QMainWindow, WindowMixin):
                     else:
                         self.label_hist.append(line)
 
-    def load_pascal_xml_by_filename(self, xml_path):
-        if self.file_path is None:
-            return
-        if os.path.isfile(xml_path) is False:
+    def load_pascal_xml_by_filename(self, xml_path: Path) -> None:
+        if self.file_path is None or not xml_path.is_file():
             return
 
         self.set_format(FORMAT_PASCALVOC)
-
         t_voc_parse_reader = PascalVocReader(xml_path)
         shapes = t_voc_parse_reader.get_shapes()
         self.load_labels(shapes)
         self.canvas.verified = t_voc_parse_reader.verified
 
-    def load_yolo_txt_by_filename(self, txt_path):
-        if self.file_path is None:
-            return
-        if os.path.isfile(txt_path) is False:
+    def load_yolo_txt_by_filename(self, txt_path: Path) -> None:
+        if self.file_path is None or not txt_path.is_file():
             return
 
         self.set_format(FORMAT_YOLO)
         t_yolo_parse_reader = YoloReader(txt_path, self.image)
         shapes = t_yolo_parse_reader.get_shapes()
-        print(shapes)
         self.load_labels(shapes)
         self.canvas.verified = t_yolo_parse_reader.verified
 
-    def load_create_ml_json_by_filename(self, json_path, file_path):
-        if self.file_path is None:
-            return
-        if os.path.isfile(json_path) is False:
+    def load_create_ml_json_by_filename(self, json_path: Path, file_path: Path):
+        if self.file_path is None or not json_path.is_file():
             return
 
         self.set_format(FORMAT_CREATEML)
