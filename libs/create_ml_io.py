@@ -104,29 +104,28 @@ class CreateMLWriter:
 
 
 class CreateMLReader:
-    def __init__(self, json_path, file_path):
+    def __init__(self, json_path: Path, file_path: Path):
         self.json_path = json_path
         self.shapes = []
+        self.keypoints = []
         self.verified = False
-        self.filename = os.path.basename(file_path)
+        self.filename = file_path.stem
         try:
             self.parse_json()
         except ValueError:
             print("JSON decoding failed")
 
     def parse_json(self):
-        with open(self.json_path, "r") as file:
-            input_data = file.read()
-
-        output_dict = json.loads(input_data)
+        with self.json_path.open() as f:
+            output_dict = json.load(f)
         self.verified = True
-
         if len(self.shapes) > 0:
             self.shapes = []
         for image in output_dict:
             if image["image"] == self.filename:
                 for shape in image["annotations"]:
                     self.add_shape(shape["label"], shape["coordinates"])
+
 
     def add_shape(self, label, bnd_box):
         x_min = bnd_box["x"] - (bnd_box["width"] / 2)
