@@ -82,7 +82,7 @@ class MainWindow(QMainWindow, WindowMixin):
     BBOX_MODE = 1
     KEYPOINT_MODE = 2
 
-    def __init__(self, default_filename: Optional[Path] = None, default_prefdef_class_file: Optional[Path] = None, default_save_dir=None):
+    def __init__(self, default_filename: Optional[Path] = None, default_prefdef_class_file: Optional[Path] = None, default_save_dir: [Path]=None):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
@@ -99,6 +99,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Save as Pascal voc xml
         self.default_save_dir = default_save_dir
+        self.default_save_dir.mkdir(exist_ok=True)
         # self.label_file_format = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.PASCAL_VOC)
         self.label_file_format = settings.get(SETTING_LABEL_FILE_FORMAT, LabelFileFormat.CREATE_ML)
 
@@ -435,12 +436,11 @@ class MainWindow(QMainWindow, WindowMixin):
                 break
         self.resize(size)
         self.move(position)
-        save_dir = ustr(settings.get(SETTING_SAVE_DIR, None))
+
         self.last_open_dir = ustr(settings.get(SETTING_LAST_OPEN_DIR, None))
-        if self.default_save_dir is None and save_dir is not None and os.path.exists(save_dir):
-            self.default_save_dir = save_dir
-            self.statusBar().showMessage(f'{__appname__} started. Annotation will be saved to {self.default_save_dir}')
-            self.statusBar().show()
+
+        self.statusBar().showMessage(f'{__appname__} started. Annotation will be saved to {self.default_save_dir}')
+        self.statusBar().show()
 
         self.restoreState(settings.get(SETTING_WIN_STATE, QByteArray()))
         Shape.line_color = self.line_color = QColor(settings.get(SETTING_LINE_COLOR, DEFAULT_LINE_COLOR))
@@ -1108,12 +1108,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def show_bounding_box_from_annotation_file(self, file_path):
         file_path = Path(file_path)
-        if self.default_save_dir is not None:
-            default_save_dir = Path(self.default_save_dir)
+        if self.default_save_dir.exists():
             basename = file_path.stem
-            xml_path = (default_save_dir / basename).with_suffix(XML_EXT)
-            txt_path = (default_save_dir / basename).with_suffix(TXT_EXT)
-            json_path = (default_save_dir / basename).with_suffix(JSON_EXT)
+            xml_path = (self.default_save_dir / basename).with_suffix(XML_EXT)
+            txt_path = (self.default_save_dir / basename).with_suffix(TXT_EXT)
+            json_path = (self.default_save_dir / basename).with_suffix(JSON_EXT)
 
             """Annotation file priority:
             PascalXML > YOLO
@@ -1557,6 +1556,7 @@ def get_main_app(argv=[]):
     Standard boilerplate Qt application code.
     Do everything but app.exec_() -- so that we can test the application in one thread
     """
+    current = Path(__file__).parent.absolute()
     app = QApplication(argv)
     app.setApplicationName(__appname__)
     app.setWindowIcon(new_icon("app"))
@@ -1564,8 +1564,8 @@ def get_main_app(argv=[]):
     argparser = argparse.ArgumentParser()
     argparser.add_argument("image_dir", type=Path, nargs="?")
     # argparser.add_argument("class_file", default=os.path.join(os.path.dirname(__file__), "data", "predefined_classes.txt"), nargs="?")
-    argparser.add_argument("class_file", default=Path(__file__).parent / "data" / "predefined_classes.txt", nargs="?")
-    argparser.add_argument("save_dir", type=Path, nargs="?")
+    argparser.add_argument("class_file", default=current / "data" / "predefined_classes.txt", nargs="?")
+    argparser.add_argument("save_dir", type=Path, default=current / "save_dir", nargs="?")
     args = argparser.parse_args(argv[1:])
 
     # Usage : labelImg.py image classFile saveDir
