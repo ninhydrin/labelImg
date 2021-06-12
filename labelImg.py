@@ -82,7 +82,7 @@ class MainWindow(QMainWindow, WindowMixin):
     BBOX_MODE = 1
     KEYPOINT_MODE = 2
 
-    def __init__(self, default_filename: Optional[Path] = None, default_prefdef_class_file=None, default_save_dir=None):
+    def __init__(self, default_filename: Optional[Path] = None, default_prefdef_class_file: Optional[Path] = None, default_save_dir=None):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
@@ -439,8 +439,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.last_open_dir = ustr(settings.get(SETTING_LAST_OPEN_DIR, None))
         if self.default_save_dir is None and save_dir is not None and os.path.exists(save_dir):
             self.default_save_dir = save_dir
-            self.statusBar().showMessage('%s started. Annotation will be saved to %s' %
-                                         (__appname__, self.default_save_dir))
+            self.statusBar().showMessage(f'{__appname__} started. Annotation will be saved to {self.default_save_dir}')
             self.statusBar().show()
 
         self.restoreState(settings.get(SETTING_WIN_STATE, QByteArray()))
@@ -775,6 +774,20 @@ class MainWindow(QMainWindow, WindowMixin):
             action.setEnabled(True)
         self.update_combo_box()
 
+    def add_keypoint(self, kyepoint):
+        item = HashableQListWidgetItem(shape.label)
+        item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+        item.setCheckState(Qt.Checked)
+        item.setBackground(generate_color_by_text(shape.label))
+        self.items_to_shapes[item] = shape
+        self.shapes_to_items[shape] = item
+        self.label_list.addItem(item)
+        self.keypoint_list.addItem(item)
+        for action in self.actions.onShapesPresent:
+            action.setEnabled(True)
+        self.update_combo_box()
+
+
     def remove_label(self, shape):
         if shape is None:
             # print('rm empty label')
@@ -900,9 +913,7 @@ class MainWindow(QMainWindow, WindowMixin):
         """
         if not self.use_default_label_checkbox.isChecked() or not self.default_label_text_line.text():
             if len(self.label_hist) > 0:
-                self.label_dialog = LabelDialog(
-                    parent=self, list_item=self.label_hist)
-
+                self.label_dialog = LabelDialog(parent=self, list_item=self.label_hist)
             # Sync single class mode from PR#106
             if self.single_class_mode.isChecked() and self.lastLabel:
                 text = self.lastLabel
@@ -1476,15 +1487,12 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.end_move(copy=False)
         self.set_dirty()
 
-    def load_predefined_classes(self, predef_classes_file):
-        if os.path.exists(predef_classes_file) is True:
-            with codecs.open(predef_classes_file, 'r', 'utf8') as f:
+    def load_predefined_classes(self, predef_classes_file: Path) -> None:
+        if predef_classes_file.exists():
+            with predef_classes_file.open() as f:
                 for line in f:
                     line = line.strip()
-                    if self.label_hist is None:
-                        self.label_hist = [line]
-                    else:
-                        self.label_hist.append(line)
+                    self.label_hist.append(line)
 
     def load_pascal_xml_by_filename(self, xml_path: Path) -> None:
         if self.file_path is None or not xml_path.is_file():
@@ -1552,23 +1560,16 @@ def get_main_app(argv=[]):
     app = QApplication(argv)
     app.setApplicationName(__appname__)
     app.setWindowIcon(new_icon("app"))
-    # Tzutalin 201705+: Accept extra agruments to change predefined class file
+
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("image_dir", nargs="?")
-    argparser.add_argument("class_file",
-                           default=os.path.join(os.path.dirname(__file__), "data", "predefined_classes.txt"),
-                           nargs="?")
-    argparser.add_argument("save_dir", nargs="?")
+    argparser.add_argument("image_dir", type=Path, nargs="?")
+    # argparser.add_argument("class_file", default=os.path.join(os.path.dirname(__file__), "data", "predefined_classes.txt"), nargs="?")
+    argparser.add_argument("class_file", default=Path(__file__).parent / "data" / "predefined_classes.txt", nargs="?")
+    argparser.add_argument("save_dir", type=Path, nargs="?")
     args = argparser.parse_args(argv[1:])
 
-    args.image_dir = args.image_dir and os.path.normpath(args.image_dir)
-    args.class_file = args.class_file and os.path.normpath(args.class_file)
-    args.save_dir = args.save_dir and os.path.normpath(args.save_dir)
-
     # Usage : labelImg.py image classFile saveDir
-    win = MainWindow(args.image_dir,
-                     args.class_file,
-                     args.save_dir)
+    win = MainWindow(args.image_dir, args.class_file, args.save_dir)
     win.show()
     return app, win
 

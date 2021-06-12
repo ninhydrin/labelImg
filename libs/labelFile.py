@@ -9,7 +9,7 @@ except ImportError:
 
 from base64 import b64encode, b64decode
 from libs.keypoint import KeyPoint
-from typing import List
+from typing import List, Optional
 from libs.pascal_voc_io import PascalVocWriter
 from libs.yolo_io import YOLOWriter
 from libs.pascal_voc_io import XML_EXT
@@ -35,7 +35,7 @@ class LabelFile(object):
     # suffix = '.lif'
     suffix = XML_EXT
 
-    def __init__(self, filename=None):
+    def __init__(self, filename: Optional[Path] = None):
         self.shapes = ()
         self.image_path = None
         self.image_data = None
@@ -146,9 +146,8 @@ class LabelFile(object):
     '''
 
     @staticmethod
-    def is_label_file(filename):
-        file_suffix = os.path.splitext(filename)[1].lower()
-        return file_suffix == LabelFile.suffix
+    def is_label_file(filename: Path):
+        return filename.suffix.lower() == LabelFile.suffix
 
     @staticmethod
     def convert_points_to_bnd_box(points):
