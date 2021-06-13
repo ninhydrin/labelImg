@@ -327,8 +327,9 @@ class Canvas(QWidget):
             self.keypoint.set_keypoint(pos)
             if self.keypoint.is_end():
                 self.keypoints.append(self.keypoint)
-                self.keypoint = None
                 self.newKeypoint.emit()
+                self.keypoint = None
+
 
     def handle_drawing(self, pos):
         if self.current and self.current.reach_max_points() is False:

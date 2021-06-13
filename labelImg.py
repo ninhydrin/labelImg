@@ -82,7 +82,7 @@ class MainWindow(QMainWindow, WindowMixin):
     BBOX_MODE = 1
     KEYPOINT_MODE = 2
 
-    def __init__(self, default_filename: Optional[Path] = None, default_prefdef_class_file: Optional[Path] = None, default_save_dir: [Path]=None):
+    def __init__(self, default_filename: Optional[Path] = None, default_prefdef_class_file: Optional[Path] = None, default_save_dir: Optional[Path]=None):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
@@ -943,6 +943,18 @@ class MainWindow(QMainWindow, WindowMixin):
             # self.canvas.undoLastLine()
             self.canvas.reset_all_lines()
 
+    def new_keypoint(self):
+        """canvasのhandle_keypointでkeypointが1セット終わったときに呼ばれる
+        """
+        self.diffc_button.setChecked(False)
+        keypoint = self.canvas.keypoint
+        self.add_keypoint(keypoint)
+        if self.beginner():  # Switch to edit mode.
+            self.actions.create.setEnabled(True)
+        else:
+            self.actions.editMode.setEnabled(True)
+        self.set_dirty()
+
     def scroll_request(self, delta, orientation):
         units = - delta / (8 * 15)
         bar = self.scroll_bars[orientation]
@@ -1025,8 +1037,9 @@ class MainWindow(QMainWindow, WindowMixin):
         for item, shape in self.items_to_shapes.items():
             item.setCheckState(Qt.Checked if value else Qt.Unchecked)
 
-    def load_file(self, file_path=None):
+    def load_file(self, file_path=None) -> bool:
         """Load the specified file, or the last opened file if None."""
+
         self.reset_state()
         self.canvas.setEnabled(False)
         if file_path is None:
@@ -1052,10 +1065,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 try:
                     self.label_file = LabelFile(unicode_file_path)
                 except LabelFileError as e:
-                    self.error_message(u'Error opening file',
-                                       (u"<p><b>%s</b></p>"
-                                        u"<p>Make sure <i>%s</i> is a valid label file.")
-                                       % (e, unicode_file_path))
+                    self.error_message('Error opening file', f"<p><b>{e}</b></p><p>Make sure <i>{unicode_file_path}</i> is a valid label file.")
                     self.status("Error reading %s" % unicode_file_path)
                     return False
                 self.image_data = self.label_file.image_data
@@ -1070,16 +1080,18 @@ class MainWindow(QMainWindow, WindowMixin):
             image = self.image_data if isinstance(self.image_data, QImage) else QImage.fromData(self.image_data)
 
             if image.isNull():
-                self.error_message('Error opening file',
-                                    f"<p>Make sure <i>{unicode_file_path}</i> is a valid image file.")
+                self.error_message('Error opening file.', f"<p>Make sure <i>{unicode_file_path}</i> is a valid image file.")
                 self.status(f"Error reading {unicode_file_path}")
                 return False
             self.status(f"Loaded {unicode_file_path.name}")
             self.image = image
             self.file_path = unicode_file_path
             self.canvas.load_pixmap(QPixmap.fromImage(image))
+            label_file = (self.default_save_dir / unicode_file_path.stem).with_suffix(LabelFile.suffix)
+
             if self.label_file:
                 self.load_labels(self.label_file.shapes)
+
             self.set_clean()
             self.canvas.setEnabled(True)
             self.adjust_scale(initial=True)
@@ -1246,7 +1258,7 @@ class MainWindow(QMainWindow, WindowMixin):
                     filename = filename[0]
             self.load_pascal_xml_by_filename(filename)
 
-    def open_dir_dialog(self, _value=False, dir_path=None, silent=False):
+    def open_dir_dialog(self, _value=False, dir_path=None, silent=False) -> None:
         if not self.may_continue():
             return
 
@@ -1265,7 +1277,12 @@ class MainWindow(QMainWindow, WindowMixin):
         self.last_open_dir = target_dir_path
         self.import_dir_images(target_dir_path)
 
-    def import_dir_images(self, dir_path: Path):
+    def import_dir_images(self, dir_path: Path) -> None:
+        """ディレクトリの画像ファイルを読み込み画像を開く
+
+        Args:
+            dir_path (Path): [description]
+        """
         if not self.may_continue() or not dir_path:
             return
 
@@ -1338,11 +1355,11 @@ class MainWindow(QMainWindow, WindowMixin):
             if self.cur_img_idx + 1 < self.img_count:
                 self.cur_img_idx += 1
                 filename = self.m_img_list[self.cur_img_idx]
-
         if filename:
             self.load_file(filename)
 
     def open_file(self, _value=False):
+        print("open")
         if not self.may_continue():
             return
         path = os.path.dirname(ustr(self.file_path)) if self.file_path else '.'
