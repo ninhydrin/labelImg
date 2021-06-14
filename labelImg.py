@@ -221,6 +221,8 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
 
         self.canvas.newKeypoint.connect(self.new_keypoint)
+        self.canvas.show_status.connect(self.show_status)
+
         self.setCentralWidget(scroll)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.keypoint_dock)

@@ -31,15 +31,9 @@ class Canvas(QWidget):
     selectionChanged = pyqtSignal(bool)
     shapeMoved = pyqtSignal()
     drawingPolygon = pyqtSignal(bool)
+    show_status = pyqtSignal(str)
 
     EDIT, CREATE, KEYPOINT = list(range(3))
-    KEY_POINT_NAMES = [
-        "nose","left_eye","right_eye","left_ear","right_ear",
-        "left_shoulder","right_shoulder","left_elbow","right_elbow",
-        "left_wrist","right_wrist","left_hip","right_hip",
-        "left_knee","right_knee","left_ankle","right_ankle"
-    ]
-
     epsilon = 11.0
 
     def __init__(self, *args, **kwargs):
@@ -137,9 +131,9 @@ class Canvas(QWidget):
         # Update coordinates in status bar if image is opened
         window = self.parent().window()
         if window.file_path is not None:
-            self.parent().window().label_coordinates.setText(
-                'X: %d; Y: %d' % (pos.x(), pos.y()))
+            self.parent().window().label_coordinates.setText(f'X: {pos.x()}; Y: {pos.y()}')
 
+        self.update_status_bar()
         # Polygon drawing.
         if self.drawing():
             self.override_cursor(CURSOR_DRAW)
@@ -274,6 +268,7 @@ class Canvas(QWidget):
             self.select_shape_point(pos)
             self.prev_point = pos
         self.update()
+        self.update_status_bar()
 
     def mouseReleaseEvent(self, ev):
         if ev.button() == Qt.RightButton:
@@ -296,7 +291,14 @@ class Canvas(QWidget):
             else:
                 # pan
                 QApplication.restoreOverrideCursor()
+        self.update_status_bar()
 
+    def update_status_bar(self):
+        if self.keypointing():
+            if self.keypoint:
+                self.show_status.emit(KeyPoint.KEY_POINT_NAMES[self.keypoint.keypoint_index])
+            else:
+                self.show_status.emit(KeyPoint.KEY_POINT_NAMES[0])
     def end_move(self, copy=False):
         assert self.selected_shape and self.selected_shape_copy
         shape = self.selected_shape_copy
@@ -323,13 +325,13 @@ class Canvas(QWidget):
         if self.keypoint is None:
             self.keypoint = KeyPoint()
             self.keypoint.set_keypoint(pos)
+
         else:
             self.keypoint.set_keypoint(pos)
             if self.keypoint.is_end():
                 self.keypoints.append(self.keypoint)
                 self.newKeypoint.emit()
                 self.keypoint = None
-
 
     def handle_drawing(self, pos):
         if self.current and self.current.reach_max_points() is False:
