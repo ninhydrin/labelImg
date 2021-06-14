@@ -126,6 +126,9 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.items_to_shapes = {}
         self.shapes_to_items = {}
+
+        self.items_to_keypoints = {}
+        self.keypoints_to_items = {}
         self.prev_label_text = ''
 
         list_layout = QVBoxLayout()
@@ -217,7 +220,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.selectionChanged.connect(self.shape_selection_changed)
         self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
 
-        self.canvas.newKeypoint.connect(self.set_dirty)
+        self.canvas.newKeypoint.connect(self.new_keypoint)
         self.setCentralWidget(scroll)
         self.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.keypoint_dock)
@@ -402,8 +405,7 @@ class MainWindow(QMainWindow, WindowMixin):
             create_mode, keypoint_mode, edit_mode, None,
             hide_all, show_all)
 
-        self.statusBar().showMessage('%s started.' % __appname__)
-        self.statusBar().show()
+        self.show_status(f'{__appname__} started.')
 
         # Application state.
         self.image = QImage()
@@ -439,8 +441,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.last_open_dir = ustr(settings.get(SETTING_LAST_OPEN_DIR, None))
 
-        self.statusBar().showMessage(f'{__appname__} started. Annotation will be saved to {self.default_save_dir}')
-        self.statusBar().show()
+        self.show_status(f'{__appname__} started. Annotation will be saved to {self.default_save_dir}')
 
         self.restoreState(settings.get(SETTING_WIN_STATE, QByteArray()))
         Shape.line_color = self.line_color = QColor(settings.get(SETTING_LINE_COLOR, DEFAULT_LINE_COLOR))
@@ -576,7 +577,13 @@ class MainWindow(QMainWindow, WindowMixin):
         QTimer.singleShot(0, function)
 
     def status(self, message, delay=5000):
+        """指定した時間メッセージを表示する
+        """
         self.statusBar().showMessage(message, delay)
+
+    def show_status(self, msg: str):
+        self.statusBar().showMessage(msg)
+        self.statusBar().show()
 
     def reset_state(self):
         self.items_to_shapes.clear()
@@ -774,17 +781,16 @@ class MainWindow(QMainWindow, WindowMixin):
             action.setEnabled(True)
         self.update_combo_box()
 
-    def add_keypoint(self, kyepoint):
-        item = HashableQListWidgetItem(shape.label)
+    def add_keypoint(self, keypoint):
+        item = HashableQListWidgetItem("keypoints")
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
         item.setCheckState(Qt.Checked)
-        item.setBackground(generate_color_by_text(shape.label))
-        self.items_to_shapes[item] = shape
-        self.shapes_to_items[shape] = item
-        self.label_list.addItem(item)
+        # item.setBackground(generate_color_by_text(shape.label))
+        self.items_to_keypoints[item] = keypoint
+        self.keypoints_to_items[keypoint] = item
         self.keypoint_list.addItem(item)
-        for action in self.actions.onShapesPresent:
-            action.setEnabled(True)
+        # for action in self.actions.onShapesPresent:
+            # action.setEnabled(True)
         self.update_combo_box()
 
 
@@ -1238,14 +1244,11 @@ class MainWindow(QMainWindow, WindowMixin):
         dir_path = QFileDialog.getExistingDirectory(self, f'{__appname__} - Save annotations to the directory', path,  QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
         if dir_path is not None and len(dir_path) > 1:
             self.default_save_dir = Path(dir_path)
-
-        self.statusBar().showMessage(f'Change saved folder. Annotation will be saved to {self.default_save_dir}')
-        self.statusBar().show()
+        self.show_status(f'Change saved folder. Annotation will be saved to {self.default_save_dir}')
 
     def open_annotation_dialog(self, _value=False):
         if self.file_path is None:
-            self.statusBar().showMessage('Please select image first')
-            self.statusBar().show()
+            self.show_status('Please select image first')
             return
 
         path = os.path.dirname(ustr(self.file_path))\
@@ -1407,8 +1410,7 @@ class MainWindow(QMainWindow, WindowMixin):
     def _save_file(self, annotation_file_path: Path) -> None:
         if annotation_file_path and self.save_labels(annotation_file_path):
             self.set_clean()
-            self.statusBar().showMessage(f'Saved to {annotation_file_path}')
-            self.statusBar().show()
+            self.show_status(f'Saved to {annotation_file_path}')
 
     def close_file(self, _value=False):
         if not self.may_continue():
