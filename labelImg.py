@@ -806,12 +806,11 @@ class MainWindow(QMainWindow, WindowMixin):
         del self.items_to_shapes[item]
         self.update_combo_box()
 
-    def load_labels(self, shapes: list):
+    def load_labels(self, shapes: list, keypoints: list):
         s = []
         for label, points, line_color, fill_color, difficult in shapes:
             shape = Shape(label=label)
             for x, y in points:
-                # Ensure the labels are within the bounds of the image. If not, fix them.
                 x, y, snapped = self.canvas.snap_point_to_canvas(x, y)
                 if snapped:
                     self.set_dirty()
@@ -824,8 +823,12 @@ class MainWindow(QMainWindow, WindowMixin):
             shape.line_color = QColor(*line_color) if line_color else generate_color_by_text(label)
             shape.fill_color = QColor(*fill_color) if fill_color else generate_color_by_text(label)
             self.add_label(shape)
+        for keypoint in keypoints:
+            self.add_keypoint(keypoint)
+
         self.update_combo_box()
         self.canvas.load_shapes(s)
+        self.canvas.load_keypoints(keypoints)
 
     def update_combo_box(self):
         # Get the unique labels and add them to the Combobox.
@@ -1108,8 +1111,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.toggle_actions(True)
             self.show_bounding_box_from_annotation_file(file_path)
 
-            counter = self.counter_str()
-            self.setWindowTitle(__appname__ + ' ' + file_path + ' ' + counter)
+            self.setWindowTitle(f"{__appname__} {file_path} {self.counter_str()}")
 
             # Default : select last item if there is at least one item
             if self.label_list.count():
@@ -1124,7 +1126,7 @@ class MainWindow(QMainWindow, WindowMixin):
         """
         Converts image counter to string representation.
         """
-        return '[{} / {}]'.format(self.cur_img_idx + 1, self.img_count)
+        return f'[{self.cur_img_idx + 1} / {self.img_count}]'
 
     def show_bounding_box_from_annotation_file(self, file_path):
         file_path = Path(file_path)
@@ -1133,10 +1135,7 @@ class MainWindow(QMainWindow, WindowMixin):
             xml_path = (self.default_save_dir / basename).with_suffix(XML_EXT)
             txt_path = (self.default_save_dir / basename).with_suffix(TXT_EXT)
             json_path = (self.default_save_dir / basename).with_suffix(JSON_EXT)
-
-            """Annotation file priority:
-            PascalXML > YOLO
-            """
+            print("json", json_path, json_path.exists())
             if xml_path.is_file():
                 self.load_pascal_xml_by_filename(xml_path)
             elif txt_path.is_file():
@@ -1147,10 +1146,13 @@ class MainWindow(QMainWindow, WindowMixin):
         else:
             xml_path = file_path.with_suffix(XML_EXT)
             txt_path = file_path.with_suffix(TXT_EXT)
+            json_path = file_path.with_suffix(JSON_EXT)
             if xml_path.is_file():
                 self.load_pascal_xml_by_filename(xml_path)
             elif txt_path.is_file():
                 self.load_yolo_txt_by_filename(txt_path)
+            elif json_path.is_file():
+                self.load_create_ml_json_by_filename(json_path, file_path)
 
     def resizeEvent(self, event):
         if self.canvas and not self.image.isNull()\
@@ -1521,7 +1523,8 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_format(FORMAT_PASCALVOC)
         t_voc_parse_reader = PascalVocReader(xml_path)
         shapes = t_voc_parse_reader.get_shapes()
-        self.load_labels(shapes)
+        keypoints = t_voc_parse_reader.keypoints()
+        self.load_labels(shapes, keypoints)
         self.canvas.verified = t_voc_parse_reader.verified
 
     def load_yolo_txt_by_filename(self, txt_path: Path) -> None:
@@ -1531,7 +1534,8 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_format(FORMAT_YOLO)
         t_yolo_parse_reader = YoloReader(txt_path, self.image)
         shapes = t_yolo_parse_reader.get_shapes()
-        self.load_labels(shapes)
+        keypoints = t_yolo_parse_reader.keypoints()
+        self.load_labels(shapes, keypoints)
         self.canvas.verified = t_yolo_parse_reader.verified
 
     def load_create_ml_json_by_filename(self, json_path: Path, file_path: Path):
@@ -1539,10 +1543,10 @@ class MainWindow(QMainWindow, WindowMixin):
             return
 
         self.set_format(FORMAT_CREATEML)
-
         create_ml_parse_reader = CreateMLReader(json_path, file_path)
         shapes = create_ml_parse_reader.get_shapes()
-        self.load_labels(shapes)
+        keypoints = create_ml_parse_reader.keypoints
+        self.load_labels(shapes, keypoints)
         self.canvas.verified = create_ml_parse_reader.verified
 
     def copy_previous_bounding_boxes(self):

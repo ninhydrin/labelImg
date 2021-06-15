@@ -4,7 +4,7 @@ import json
 from libs.keypoint import KeyPoint
 from pathlib import Path
 from typing import List
-
+from PyQt5.QtCore import QPoint
 from libs.constants import DEFAULT_ENCODING
 import os
 
@@ -109,7 +109,7 @@ class CreateMLReader:
         self.shapes = []
         self.keypoints = []
         self.verified = False
-        self.filename = file_path.stem
+        self.filename = file_path.name
         try:
             self.parse_json()
         except ValueError:
@@ -119,13 +119,22 @@ class CreateMLReader:
         with self.json_path.open() as f:
             output_dict = json.load(f)
         self.verified = True
-        if len(self.shapes) > 0:
-            self.shapes = []
+        self.shapes = []
+        self.keypoints = []
+
+        keypoint_num = len(KeyPoint.KEY_POINT_NAMES)
         for image in output_dict:
             if image["image"] == self.filename:
                 for shape in image["annotations"]:
                     self.add_shape(shape["label"], shape["coordinates"])
 
+                for keypoint in image["keypoints"]:
+                    keypoint_obj = KeyPoint()
+                    assert len(keypoint) == keypoint_num
+                    for i, name in enumerate(KeyPoint.KEY_POINT_NAMES):
+                        if keypoint[i][2]:
+                            keypoint_obj.keypoints[name] = QPoint(keypoint[i][0], keypoint[i][1])
+                    self.keypoints.append(keypoint_obj)
 
     def add_shape(self, label, bnd_box):
         x_min = bnd_box["x"] - (bnd_box["width"] / 2)

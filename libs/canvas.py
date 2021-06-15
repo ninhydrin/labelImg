@@ -216,11 +216,12 @@ class Canvas(QWidget):
         # - Highlight vertex
         # Update shape/vertex fill and tooltip value accordingly.
         self.setToolTip("Image")
+        # NOTE: BBoxにマウスが触れたときの描画
         for shape in reversed([s for s in self.shapes if self.isVisible(s)]):
             # Look for a nearby vertex to highlight. If that fails,
             # check if we happen to be inside a shape.
             index = shape.nearest_vertex(pos, self.epsilon)
-            if index is not None:
+            if index is not None and self.editing():
                 if self.selected_vertex():
                     self.h_shape.highlight_clear()
                 self.h_vertex, self.h_shape = index, shape
@@ -230,7 +231,7 @@ class Canvas(QWidget):
                 self.setStatusTip(self.toolTip())
                 self.update()
                 break
-            elif shape.contains_point(pos):
+            elif shape.contains_point(pos) and self.editing():
                 if self.selected_vertex():
                     self.h_shape.highlight_clear()
                 self.h_vertex, self.h_shape = None, shape
@@ -299,6 +300,7 @@ class Canvas(QWidget):
                 self.show_status.emit(KeyPoint.KEY_POINT_NAMES[self.keypoint.keypoint_index])
             else:
                 self.show_status.emit(KeyPoint.KEY_POINT_NAMES[0])
+
     def end_move(self, copy=False):
         assert self.selected_shape and self.selected_shape_copy
         shape = self.selected_shape_copy
@@ -721,6 +723,11 @@ class Canvas(QWidget):
     def load_shapes(self, shapes):
         self.shapes = list(shapes)
         self.current = None
+        self.repaint()
+
+    def load_keypoints(self, keypoints: List[KeyPoint]) -> None:
+        self.keypoints = keypoints
+        self.keypoint = None
         self.repaint()
 
     def set_shape_visible(self, shape, value):
