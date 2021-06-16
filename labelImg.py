@@ -488,7 +488,8 @@ class MainWindow(QMainWindow, WindowMixin):
             self.canvas.set_drawing_shape_to_square(False)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Control:
+        key = event.key()
+        if key == Qt.Key_Control:
             # Draw rectangle if Ctrl is pressed
             self.canvas.set_drawing_shape_to_square(True)
 
@@ -1061,10 +1062,9 @@ class MainWindow(QMainWindow, WindowMixin):
         # Fix bug: An  index error after select a directory when open a new file.
         unicode_file_path = ustr(file_path)
         unicode_file_path = Path(unicode_file_path).absolute()
-
         if unicode_file_path and self.file_list_widget.count() > 0:
-            if unicode_file_path in self.m_img_list:
-                index = self.m_img_list.index(unicode_file_path)
+            if str(unicode_file_path) in self.m_img_list:
+                index = self.m_img_list.index(str(unicode_file_path))
                 file_widget_item = self.file_list_widget.item(index)
                 file_widget_item.setSelected(True)
             else:
@@ -1353,7 +1353,6 @@ class MainWindow(QMainWindow, WindowMixin):
 
         if not self.may_continue() or self.img_count <= 0:
             return
-
         filename = None
         if self.file_path is None:
             filename = self.m_img_list[0]

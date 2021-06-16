@@ -131,7 +131,8 @@ class Canvas(QWidget):
         # Update coordinates in status bar if image is opened
         window = self.parent().window()
         if window.file_path is not None:
-            self.parent().window().label_coordinates.setText(f'X: {pos.x()}; Y: {pos.y()}')
+            prefix = "Out of Pixmap " if self.out_of_pixmap(pos) else ""
+            self.parent().window().label_coordinates.setText(prefix + f'X: {pos.x()}; Y: {pos.y()}')
 
         self.update_status_bar()
         # Polygon drawing.
@@ -255,13 +256,11 @@ class Canvas(QWidget):
                 self.handle_drawing(pos)
             elif self.keypointing():
                 self.handle_keypoint(pos)
-                print(self.drawing(), pos, self.mode)
             else:
                 selection = self.select_shape_point(pos)
                 self.prev_point = pos
 
                 if selection is None:
-                    # pan
                     QApplication.setOverrideCursor(QCursor(Qt.OpenHandCursor))
                     self.pan_initial_pos = pos
 
@@ -281,14 +280,11 @@ class Canvas(QWidget):
                 self.selected_shape_copy = None
                 self.repaint()
         elif ev.button() == Qt.LeftButton and self.selected_shape:
-            if self.selected_vertex():
-                self.override_cursor(CURSOR_POINT)
-            else:
-                self.override_cursor(CURSOR_GRAB)
+            self.override_cursor(CURSOR_POINT if self.selected_vertex() else CURSOR_GRAB)
         elif ev.button() == Qt.LeftButton:
-            pos = self.transform_pos(ev.pos())
             if self.drawing():
-                self.handle_drawing(pos)
+                # self.handle_drawing(self.transform_pos(ev.pos()))
+                pass
             else:
                 # pan
                 QApplication.restoreOverrideCursor()
@@ -324,6 +320,9 @@ class Canvas(QWidget):
             self.repaint()
 
     def handle_keypoint(self, pos):
+        if self.out_of_pixmap(pos):
+            return
+
         if self.keypoint is None:
             self.keypoint = KeyPoint()
             self.keypoint.set_keypoint(pos)
@@ -336,7 +335,7 @@ class Canvas(QWidget):
                 self.keypoint = None
 
     def handle_drawing(self, pos):
-        if self.current and self.current.reach_max_points() is False:
+        if self.current and self.current.reach_max_points() is False: # 終点
             init_pos = self.current[0]
             min_x = init_pos.x()
             min_y = init_pos.y()
@@ -347,7 +346,7 @@ class Canvas(QWidget):
             self.current.add_point(target_pos)
             self.current.add_point(QPointF(min_x, max_y))
             self.finalise()
-        elif not self.out_of_pixmap(pos):
+        elif not self.out_of_pixmap(pos):  # 視点
             self.current = Shape()
             self.current.add_point(pos)
             self.line.points = [pos, pos]
@@ -653,6 +652,12 @@ class Canvas(QWidget):
             self.move_one_pixel('Up')
         elif key == Qt.Key_Down and self.selected_shape:
             self.move_one_pixel('Down')
+        elif key == Qt.Key_P and self.keypointing() and self.keypoint:
+            self.keypoint.keypoint_index += 1
+            if self.keypoint.is_end():
+                self.keypoints.append(self.keypoint)
+                self.newKeypoint.emit()
+                self.keypoint = None
 
     def move_one_pixel(self, direction):
         # print(self.selectedShape.points)
